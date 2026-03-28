@@ -64,6 +64,30 @@
 </nav>
 
 <script>
+const navbarLocalAnnouncementPrefix = `
+    <div class="border rounded p-3 mb-3" style="background: rgba(13,110,253,0.08); border-color: rgba(13,110,253,0.25) !important;">
+        <h6 style="margin-bottom: 10px;">📌 当前版本使用说明</h6>
+        <div style="line-height: 1.8;">
+            <div>1. 当前分支默认走 <strong>OneBot 私聊模式</strong>，不是旧版 wxauto 主链路。</div>
+            <div>2. 配置页里的 <strong>监听用户无需填写</strong>，留空时会默认接收全部私聊消息。</div>
+            <div>3. 使用前请先启动 OneBot v11 连接件，并确认本地接口可用。</div>
+            <div>4. 使用说明与适配项目：</div>
+            <div style="padding-left: 1rem;">
+                <div>• KouriChat-wxclaw：<a href="https://github.com/Lziu/KouriChat-wxclaw" target="_blank">https://github.com/Lziu/KouriChat-wxclaw</a></div>
+                <div>• op_wx_onebotv11：<a href="https://github.com/Lziu/op_wx_onebotv11" target="_blank">https://github.com/Lziu/op_wx_onebotv11</a></div>
+            </div>
+        </div>
+    </div>
+`;
+
+function withNavbarLocalAnnouncementPrefix(content) {
+    const html = content || '';
+    if (html.includes('📌 当前版本使用说明') || html.includes('OneBot 私聊模式')) {
+        return html;
+    }
+    return `${navbarLocalAnnouncementPrefix}${html}`;
+}
+
 function handleBackgroundClick() {
     const input = document.getElementById('backgroundInput');
     input.click();
@@ -110,42 +134,38 @@ function showManualAnnouncement() {
     const announcementModalElement = document.getElementById('announcementModal');
     if (announcementModalElement) {
         const announcementModal = bootstrap.Modal.getOrCreateInstance(announcementModalElement);
-
-        // 如果公告内容尚未加载，则先加载
         const contentElement = document.getElementById('announcementContent');
-        if (!contentElement.innerHTML.trim()) {
-            fetch('/get_announcement')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.enabled) {
-                        // 设置公告内容
-                        const modalTitleElement = document.getElementById('announcementModalLabel');
-                        modalTitleElement.textContent = data.title;
-                        modalTitleElement.classList.remove('fs-4');
-                        modalTitleElement.classList.add('fw-bold', 'text-center', 'w-100', 'fs-3');
-                        contentElement.innerHTML = data.content;
-
-                        const modalHeader = document.querySelector('#announcementModal .modal-header');
-                        modalHeader.classList.remove('bg-info', 'bg-warning', 'bg-danger', 'bg-success', 'text-white', 'text-dark');
-                        modalHeader.style.backgroundColor = '';
-
-                        // 绑定"不再显示"按钮事件
-                        bindAnnouncementDismissHandler(data);
-                        
-                        // 显示模态框
-                        announcementModal.show();
-                    } else {
-                        showToast('公告当前已禁用', 'warning');
+        fetch('/get_announcement', { cache: 'no-store' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.enabled) {
+                    const modalTitleElement = document.getElementById('announcementModalLabel');
+                    modalTitleElement.textContent = data.title;
+                    modalTitleElement.classList.remove('fs-4');
+                    modalTitleElement.classList.add('fw-bold', 'text-center', 'w-100', 'fs-3');
+                    contentElement.innerHTML = withNavbarLocalAnnouncementPrefix(data.content);
+                    const announcementBody = document.querySelector('#announcementModal .announcement-body');
+                    if (announcementBody) {
+                        announcementBody.scrollTop = 0;
                     }
-                })
-                .catch(error => {
-                    console.error("获取公告失败:", error);
-                    showToast('获取公告失败', 'error');
-                });
-        } else {
-            // 如果内容已加载，直接显示
-            announcementModal.show();
-        }
+
+                    const modalHeader = document.querySelector('#announcementModal .modal-header');
+                    modalHeader.classList.remove('bg-info', 'bg-warning', 'bg-danger', 'bg-success', 'text-white', 'text-dark');
+                    modalHeader.style.backgroundColor = '';
+
+                    if (typeof bindAnnouncementDismissHandler === 'function') {
+                        bindAnnouncementDismissHandler(data);
+                    }
+
+                    announcementModal.show();
+                } else {
+                    showToast('公告当前已禁用', 'warning');
+                }
+            })
+            .catch(error => {
+                console.error("获取公告失败:", error);
+                showToast('获取公告失败', 'error');
+            });
     } else {
         console.error("找不到公告模态框元素");
         showToast('公告功能异常', 'error');

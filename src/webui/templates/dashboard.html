@@ -1117,6 +1117,30 @@
     <script>
         // 读取 data 属性来判断是否显示公告
         const shouldShowAnnouncement = document.body.dataset.showAnnouncement === 'true';
+        const localAnnouncementPrefix = `
+            <div class="border rounded p-3 mb-3" style="background: rgba(13,110,253,0.08); border-color: rgba(13,110,253,0.25) !important;">
+                <h6 style="margin-bottom: 10px;">📌 当前版本使用说明</h6>
+                <div style="line-height: 1.8;">
+                    <div>1. 当前分支默认走 <strong>OneBot 私聊模式</strong>，不是旧版 wxauto 主链路。</div>
+                    <div>2. 配置页里的 <strong>监听用户可以留空</strong>，留空时会默认接收全部私聊消息。</div>
+                    <div>3. 使用前请先启动 OneBot v11 连接件，并确认本地接口可用。</div>
+                    <div>4. 如果你是第一次使用，建议先看项目说明和配置页面提示，再启动机器人。</div>
+                    <div style="margin-top: 10px;">
+                        <strong>教程 / 连接件地址：</strong><br>
+                        KouriChat-wxclaw：<a href="https://github.com/Lziu/KouriChat-wxclaw" target="_blank">https://github.com/Lziu/KouriChat-wxclaw</a><br>
+                        OneBot v11 连接件：<a href="https://github.com/Lziu/op_wx_onebotv11" target="_blank">https://github.com/Lziu/op_wx_onebotv11</a>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        function withLocalAnnouncementPrefix(content) {
+            const html = content || '';
+            if (html.includes('📌 当前版本使用说明') || html.includes('OneBot 私聊模式')) {
+                return html;
+            }
+            return `${localAnnouncementPrefix}${html}`;
+        }
 
         // 通用的公告"不再显示"按钮事件处理函数
         function bindAnnouncementDismissHandler(announcementData) {
@@ -2257,7 +2281,11 @@
                         modalTitleElement.classList.remove('fs-4');
                         modalTitleElement.classList.add('fw-bold', 'text-center', 'w-100', 'fs-3');
 
-                        document.getElementById('announcementContent').innerHTML = data.content;
+                        document.getElementById('announcementContent').innerHTML = withLocalAnnouncementPrefix(data.content);
+                        const announcementBody = document.querySelector('#announcementModal .announcement-body');
+                        if (announcementBody) {
+                            announcementBody.scrollTop = 0;
+                        }
 
                         // 移除样式
                         const modalHeader = document.querySelector('#announcementModal .modal-header');
@@ -2386,7 +2414,11 @@
                             modalTitleElement.classList.remove('fs-4'); // 明确移除之前的 fs-4
                             modalTitleElement.classList.add('fw-bold', 'text-center', 'w-100', 'fs-3'); // 加粗、居中、占满宽度，并使用 fs-3 字体大小
 
-                            document.getElementById('announcementContent').innerHTML = data.content;
+                            document.getElementById('announcementContent').innerHTML = withLocalAnnouncementPrefix(data.content);
+                            const announcementBody = document.querySelector('#announcementModal .announcement-body');
+                            if (announcementBody) {
+                                announcementBody.scrollTop = 0;
+                            }
 
                             // 移除根据公告类型设置样式的代码
                             const modalHeader = document.querySelector('#announcementModal .modal-header');

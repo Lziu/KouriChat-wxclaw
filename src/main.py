@@ -17,7 +17,7 @@ except Exception as e:
 
 # 导入其余模块
 from data.config import config, DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, MODEL, MAX_TOKEN, TEMPERATURE, MAX_GROUPS
-from wxauto import WeChat
+from src.wechat import WeChat
 import re
 from src.handlers.emoji import EmojiHandler
 from src.handlers.image import ImageHandler
@@ -67,6 +67,10 @@ def initialize_logging():
     logger_config = LoggerConfig(root_dir)
     logger = logger_config.setup_logger('main')
     listen_list = config.user.listen_list
+    if listen_list:
+        logger.info(f"已配置监听用户: {listen_list}")
+    else:
+        logger.info("未配置监听用户，当前将接收全部私聊用户（OneBot 后端推荐）")
     
     # 确保autoupdate模块的日志级别设置为DEBUG
     logging.getLogger("autoupdate").setLevel(logging.DEBUG)
@@ -460,7 +464,7 @@ def message_dispatcher():
                             continue
                         
                         # 检查消息来源是否在监听列表中
-                        if who not in listen_list:
+                        if listen_list and who not in listen_list:
                             logger.debug(f"消息来源不在监听列表中，忽略: {who}")
                             continue
                         
@@ -549,6 +553,11 @@ def initialize_wx_listener():
                 time.sleep(retry_delay)
                 continue
 
+            # 未配置监听列表时，默认接收全部私聊用户
+            if not listen_list:
+                logger.info("监听列表为空，已切换为接收全部私聊用户")
+                return wx
+
             # 循环添加监听对象，设置保存图片和语音消息
             for chat_name in listen_list:
                 try:
@@ -602,6 +611,10 @@ def initialize_auto_tasks(message_handler):
                     tasks_added = 0
 
                     # 遍历所有任务并添加
+                    if not listen_list:
+                        print_status("未配置监听用户，跳过自动任务注入", "warning", "WARNING")
+                        return auto_tasker
+
                     for task in tasks:
                         try:
                             # 添加定时任务
@@ -695,11 +708,13 @@ def main():
         print_status("初始化记忆文件...", "info", "FILE")
 
         # 为每个监听的用户创建独立记忆
-        for user_name in listen_list:
-            print_status(f"为用户 '{user_name}' 创建独立记忆...", "info", "USER")
-            # 使用用户名作为用户ID
-            memory_service.initialize_memory_files(avatar_name, user_id=user_name)
-            print_status(f"用户 '{user_name}' 记忆初始化完成", "success", "CHECK")
+        if listen_list:
+            for user_name in listen_list:
+                print_status(f"为用户 '{user_name}' 创建独立记忆...", "info", "USER")
+                memory_service.initialize_memory_files(avatar_name, user_id=user_name)
+                print_status(f"用户 '{user_name}' 记忆初始化完成", "success", "CHECK")
+        else:
+            print_status("未配置固定监听用户，记忆文件将在首条私聊消息到达时按用户ID自动创建", "info", "FILE")
 
         avatar_dir = os.path.join(root_dir, config.behavior.context.avatar_dir)
         prompt_path = os.path.join(avatar_dir, "avatar.md")

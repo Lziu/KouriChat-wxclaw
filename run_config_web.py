@@ -38,10 +38,19 @@ from src.utils.console import print_status
 from src.avatar_manager import avatar_manager  # 导入角色设定管理器
 from src.webui.routes.avatar import avatar_bp
 import ctypes
-import win32api
-import win32con
-import win32job
-import win32process
+
+try:
+    import win32api  # type: ignore
+    import win32con  # type: ignore
+    import win32job  # type: ignore
+    import win32process  # type: ignore
+    HAS_PYWIN32 = True
+except Exception:
+    win32api = None
+    win32con = None
+    win32job = None
+    win32process = None
+    HAS_PYWIN32 = False
 
 # 在文件开头添加全局变量声明
 bot_process = None
@@ -156,6 +165,34 @@ update_thread = threading.Thread(target=check_cloud_updates_on_startup)
 update_thread.daemon = True
 update_thread.start()
 
+LOCAL_WEB_ANNOUNCEMENT_PREFIX = """
+<div class="border rounded p-3 mb-3" style="background: rgba(13,110,253,0.08); border-color: rgba(13,110,253,0.25) !important;">
+    <h6 style="margin-bottom: 10px;">📌 当前版本使用说明</h6>
+    <div style="line-height: 1.8;">
+        <div>1. 当前分支默认走 <strong>OneBot 私聊模式</strong>，不是旧版 wxauto 主链路。</div>
+        <div>2. 配置页里的 <strong>监听用户可以留空</strong>，留空时会默认接收全部私聊消息。</div>
+        <div>3. 使用前请先启动 OneBot v11 连接件，并确认本地接口可用。</div>
+        <div>4. 如果你是第一次使用，建议先看项目说明和配置页面提示，再启动机器人。</div>
+        <div style="margin-top: 10px;">
+            <strong>教程 / 连接件地址：</strong><br>
+            KouriChat-wxclaw：<a href="https://github.com/Lziu/KouriChat-wxclaw" target="_blank">https://github.com/Lziu/KouriChat-wxclaw</a><br>
+            OneBot v11 连接件：<a href="https://github.com/Lziu/op_wx_onebotv11" target="_blank">https://github.com/Lziu/op_wx_onebotv11</a>
+        </div>
+    </div>
+</div>
+"""
+
+
+def _prepend_local_announcement(announcement: dict) -> dict:
+    announcement = dict(announcement or {})
+    content = announcement.get("content", "") or ""
+    if LOCAL_WEB_ANNOUNCEMENT_PREFIX.strip() not in content:
+        announcement["content"] = f"{LOCAL_WEB_ANNOUNCEMENT_PREFIX}{content}"
+    if not announcement.get("title"):
+        announcement["title"] = "KouriChat 使用提醒"
+    announcement["enabled"] = True
+    return announcement
+
 def get_available_avatars() -> List[str]:
     """获取可用的人设目录列表"""
     avatar_base_dir = os.path.join(ROOT_DIR, "data/avatars")
@@ -225,7 +262,7 @@ def parse_config_groups() -> Dict[str, Dict[str, Any]]:
             {
                 "LISTEN_LIST": {
                     "value": config.user.listen_list,
-                    "description": "用户列表(请配置要和bot说话的账号的昵称或者群名，不要写备注！昵称尽量别用特殊字符)",
+                    "description": "用户列表（当前 OneBot 单私聊模式下无需填写；留空即可接收私聊消息，无需再手动配置监听用户）",
                 },
                 "GROUP_CHAT_CONFIG": {
                     "value": [
@@ -493,6 +530,32 @@ def save_config_file(config_data):
         logger.error(f"保存配置失败: {str(e)}")
         return False
 
+
+def normalize_listen_list(value):
+    """统一处理监听列表，避免空列表被保存成字符串 '[]'。"""
+    if value is None:
+        return []
+
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip() and str(item).strip() != '[]']
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text or text in {'[]', 'null', 'None'}:
+            return []
+
+        if text.startswith('[') and text.endswith(']'):
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed if str(item).strip()]
+            except Exception:
+                pass
+
+        return [item.strip() for item in text.split(',') if item.strip() and item.strip() != '[]']
+
+    return [str(value).strip()] if str(value).strip() and str(value).strip() != '[]' else []
+
 def reinitialize_tasks():
     """重新初始化定时任务"""
     try:
@@ -650,9 +713,8 @@ def update_config_value(config_data, key, value):
             current = config_data
 
             # 特殊处理 LISTEN_LIST，确保它始终是列表类型
-            if key == 'LISTEN_LIST' and isinstance(value, str):
-                value = value.split(',')
-                value = [item.strip() for item in value if item.strip()]
+            if key == 'LISTEN_LIST':
+                value = normalize_listen_list(value)
             
             # 特殊处理 GROUP_CHAT_CONFIG，确保它是正确的列表格式
             elif key == 'GROUP_CHAT_CONFIG':
@@ -1670,6 +1732,9 @@ def create_job_object():
     global job_object
     try:
         if sys.platform.startswith('win'):
+            if not HAS_PYWIN32:
+                logger.warning("未安装 pywin32，跳过 Windows 作业对象管理")
+                return False
             # 创建作业对象
             job_object = win32job.CreateJobObject(None, "KouriChatBotJob")
 
@@ -1708,6 +1773,10 @@ def create_job_object():
 def setup_console_control_handler():
     try:
         if sys.platform.startswith('win'):
+            if not HAS_PYWIN32:
+                logger.warning("未安装 pywin32，跳过控制台关闭事件处理器")
+                return
+
             def handler(dwCtrlType):
                 if dwCtrlType in (win32con.CTRL_CLOSE_EVENT, win32con.CTRL_LOGOFF_EVENT, win32con.CTRL_SHUTDOWN_EVENT):
                     logger.info("检测到控制台关闭事件，正在清理进程...")
@@ -2151,9 +2220,9 @@ def save_quick_setup():
                     "settings": {}
                 }
             current_config["categories"]["user_settings"]["settings"]["listen_list"] = {
-                "value": new_config["listen_list"],
+                "value": normalize_listen_list(new_config["listen_list"]),
                 "type": "array",
-                "description": "要监听的用户列表（请使用微信昵称，不要使用备注名）"
+                "description": "要监听的用户列表（OneBot后端可留空，留空时默认接收全部私聊用户）"
             }
 
         # 更新API设置
@@ -2666,21 +2735,21 @@ def get_announcement():
         
         if announcement and announcement.get('enabled', False):
             logger.info("从公告管理器获取到有效公告")
-            return jsonify(announcement)
+            return jsonify(_prepend_local_announcement(announcement))
         else:
             logger.info("没有有效公告，返回默认内容")
-            return jsonify({
+            return jsonify(_prepend_local_announcement({
                 'enabled': True,
                 'title': '欢迎使用KouriChat',
                 'content': '欢迎使用KouriChat！如有问题请联系开发者。'
-            })
+            }))
     except Exception as e:
         logger.error(f"获取公告失败: {e}")
-        return jsonify({
+        return jsonify(_prepend_local_announcement({
             'enabled': False,
             'title': '公告获取失败',
             'content': f'<div class="text-danger">错误信息: {str(e)}</div>'
-        })
+        }))
 
 @app.route('/dismiss_announcement', methods=['POST'])
 def dismiss_announcement():

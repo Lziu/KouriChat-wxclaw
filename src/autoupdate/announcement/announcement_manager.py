@@ -9,10 +9,29 @@ import logging
 import json
 import os
 import hashlib
+import copy
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 logger = logging.getLogger("autoupdate.announcement")
+
+
+LOCAL_ANNOUNCEMENT_PREFIX = """
+<div class="border rounded p-3 mb-3" style="background: rgba(13,110,253,0.08); border-color: rgba(13,110,253,0.25) !important;">
+    <h6 style="margin-bottom: 10px;">📌 当前版本使用说明</h6>
+    <div style="line-height: 1.8;">
+        <div>1. 当前分支默认走 <strong>OneBot 私聊模式</strong>，不是旧版 wxauto 主链路。</div>
+        <div>2. 配置页里的 <strong>监听用户可以留空</strong>，留空时会默认接收全部私聊消息。</div>
+        <div>3. 使用前请先启动 OneBot v11 连接件，并确认本地接口可用。</div>
+        <div>4. 如果你是第一次使用，建议先看项目说明和配置页面提示，再启动机器人。</div>
+        <div style="margin-top: 10px;">
+            <strong>教程 / 连接件地址：</strong><br>
+            KouriChat-wxclaw：<a href="https://github.com/Lziu/KouriChat-wxclaw" target="_blank">https://github.com/Lziu/KouriChat-wxclaw</a><br>
+            OneBot v11 连接件：<a href="https://github.com/Lziu/op_wx_onebotv11" target="_blank">https://github.com/Lziu/op_wx_onebotv11</a>
+        </div>
+    </div>
+</div>
+"""
 
 class AnnouncementManager:
     """公告管理器"""
@@ -199,7 +218,23 @@ class AnnouncementManager:
         Returns:
             Optional[Dict[str, Any]]: 当前公告信息，如果没有则返回None
         """
-        return self.current_announcement
+        if not self.current_announcement:
+            return {
+                "id": "local_usage_notice",
+                "enabled": True,
+                "title": "KouriChat 使用提醒",
+                "content": LOCAL_ANNOUNCEMENT_PREFIX,
+                "created_at": datetime.now().isoformat(),
+                "priority": "normal",
+                "show_version_info": False,
+                "auto_close": False,
+            }
+
+        announcement = copy.deepcopy(self.current_announcement)
+        original_content = announcement.get("content", "") or ""
+        if LOCAL_ANNOUNCEMENT_PREFIX.strip() not in original_content:
+            announcement["content"] = f"{LOCAL_ANNOUNCEMENT_PREFIX}{original_content}"
+        return announcement
     
     def mark_as_read(self) -> None:
         """将当前公告标记为已读"""

@@ -185,7 +185,18 @@ function processFormValue(config, key, value) {
     
     // 处理列表类型
     if (key === 'LISTEN_LIST') {
-        config[key] = value;
+        if (Array.isArray(value)) {
+            config[key] = value.filter(item => String(item).trim());
+        } else if (typeof value === 'string') {
+            const text = value.trim();
+            if (!text || text === '[]') {
+                config[key] = [];
+            } else {
+                config[key] = text.split(',').map(item => item.trim()).filter(item => item && item !== '[]');
+            }
+        } else {
+            config[key] = [];
+        }
     }
     // 处理数字类型
     else if (['TEMPERATURE', 'VISION_TEMPERATURE', 'MAX_TOKEN',
@@ -327,28 +338,26 @@ function updateAllConfigs(configs) {
                         }
                     }
                     
-                    if (userList.length > 0) {
-                        const userListElement = document.getElementById(`selected_users_${configKey}`);
-                        if (userListElement) {
-                            userListElement.innerHTML = '';
-                            userList.forEach(user => {
-                                if (user) {
-                                    const userDiv = document.createElement('div');
-                                    userDiv.className = 'list-group-item d-flex justify-content-between align-items-center';
-                                    userDiv.innerHTML = `
-                                        ${user}
-                                        <button type="button" class="btn btn-danger btn-sm" onclick="removeUser('${configKey}', '${user}')">
-                                            <i class="bi bi-x-lg"></i>
-                                        </button>
-                                    `;
-                                    userListElement.appendChild(userDiv);
-                                }
-                            });
-                            
-                            if (element) {
-                                element.value = userList.join(',');
+                    const userListElement = document.getElementById(`selected_users_${configKey}`);
+                    if (userListElement) {
+                        userListElement.innerHTML = '';
+                        userList.forEach(user => {
+                            if (user) {
+                                const userDiv = document.createElement('div');
+                                userDiv.className = 'list-group-item d-flex justify-content-between align-items-center';
+                                userDiv.innerHTML = `
+                                    ${user}
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="removeUser('${configKey}', '${user}')">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                `;
+                                userListElement.appendChild(userDiv);
                             }
-                        }
+                        });
+                    }
+
+                    if (element) {
+                        element.value = userList.join(',');
                     }
                 }
             }
@@ -393,9 +402,10 @@ function saveConfig(config) {
     // 数据格式检查
     for (const key in config) {
         if (key === 'LISTEN_LIST' && typeof config[key] === 'string') {
-            config[key] = config[key].split(',')
-                .map(item => item.trim())
-                .filter(item => item);
+            const text = config[key].trim();
+            config[key] = (!text || text === '[]')
+                ? []
+                : text.split(',').map(item => item.trim()).filter(item => item && item !== '[]');
         }
         else if (key === 'GROUP_CHAT_CONFIG') {
             if (typeof config[key] === 'string') {

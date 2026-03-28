@@ -5,7 +5,7 @@ import os
 import sys
 from datetime import datetime
 from typing import Dict, List
-from wxauto import WeChat
+from src.wechat import WeChat
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 from modules.reminder.call import Call

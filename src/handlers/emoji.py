@@ -11,10 +11,14 @@ import random
 import logging
 from typing import Optional
 from datetime import datetime
-import pyautogui
 import time
-from wxauto import WeChat
+from src.wechat import WeChat
 from data.config import config
+
+try:
+    import pyautogui  # type: ignore
+except Exception:  # pragma: no cover - optional desktop dependency
+    pyautogui = None
 
 logger = logging.getLogger('main')
 
@@ -88,6 +92,10 @@ class EmojiHandler:
     def capture_and_save_screenshot(self, who: str) -> str:
         """捕获并保存聊天窗口截图"""
         try:
+            if pyautogui is None:
+                logger.warning("pyautogui 未安装，当前后端不支持聊天窗口截图")
+                return None
+
             # 确保截图目录存在
             os.makedirs(self.screenshot_dir, exist_ok=True)
 

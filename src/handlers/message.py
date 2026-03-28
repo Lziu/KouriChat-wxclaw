@@ -11,7 +11,7 @@ import threading
 import time
 import re
 from datetime import datetime
-from wxauto import WeChat
+from src.wechat import WeChat
 from src.services.database import Session, ChatMessage
 import random
 import os
@@ -62,6 +62,9 @@ class MessageHandler:
         self.QUEUE_TIMEOUT = config.behavior.message_queue.timeout
         self.queue_lock = threading.Lock()
         self.chat_contexts = {}
+        self.recent_debug_commands = {}
+        self.debug_command_lock = threading.Lock()
+        self.debug_command_dedupe_window = 2.0
 
         # 微信实例
         self.wx = WeChat()
@@ -452,6 +455,24 @@ class MessageHandler:
 
             # 处理调试命令
             if self.debug_handler.is_debug_command(content):
+                normalized_command = content.strip()
+                debug_key = (chat_id, normalized_command)
+                current_ts = time.monotonic()
+                with self.debug_command_lock:
+                    last_ts = self.recent_debug_commands.get(debug_key)
+                    if last_ts and (current_ts - last_ts) < self.debug_command_dedupe_window:
+                        logger.warning(f"检测到重复调试命令，已忽略: {content}")
+                        return None
+                    self.recent_debug_commands[debug_key] = current_ts
+
+                    # 清理过期记录，避免字典无限增长
+                    expired_keys = [
+                        key for key, ts in self.recent_debug_commands.items()
+                        if (current_ts - ts) >= self.debug_command_dedupe_window
+                    ]
+                    for key in expired_keys:
+                        self.recent_debug_commands.pop(key, None)
+
                 logger.info(f"检测到调试命令: {content}")
 
                 # 定义回调函数，用于异步处理生成的内容

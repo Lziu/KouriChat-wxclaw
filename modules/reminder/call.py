@@ -1,10 +1,17 @@
 import logging
 import time
-import win32gui
 import pygame
-from wxauto import WeChat
-from wxauto.elements import ChatWnd
-from uiautomation import ControlFromHandle
+from src.wechat import ChatWnd, WeChat
+
+try:
+    import win32gui  # type: ignore
+except Exception:  # pragma: no cover - optional desktop dependency
+    win32gui = None
+
+try:
+    from uiautomation import ControlFromHandle  # type: ignore
+except Exception:  # pragma: no cover - optional desktop dependency
+    ControlFromHandle = None
 
 logger = logging.getLogger('main')
 
@@ -35,6 +42,9 @@ def CallforWho(wx: WeChat, who: str) -> tuple[int|None, bool]:
         否则返回 (None, False)。
     """
     logger.info("尝试发起语音通话")
+    if win32gui is None:
+        logger.warning("win32gui 未安装，当前环境不支持桌面语音通话")
+        return None, False
     try:
         if win32gui.FindWindow('ChatWnd', who):
             # --- 若找到了和指定对象的独立聊天窗口，在这个窗口上操作 ---
@@ -97,6 +107,9 @@ def CancelCall(hWnd: int) -> bool:
         否则返回 False。
     """
     logger.info("尝试挂断语音通话")
+    if win32gui is None or ControlFromHandle is None:
+        logger.warning("桌面自动化依赖缺失，无法挂断语音通话")
+        return False
 
     hWnd = hWnd
     if hWnd:
@@ -197,6 +210,10 @@ def Call(wx: WeChat, who: str, audio_file_path: str) -> None:
     Returns:
         None
     """
+    if win32gui is None or ControlFromHandle is None:
+        logger.warning("桌面自动化依赖缺失，跳过语音通话流程")
+        return
+
     call_hwnd, success = CallforWho(wx, who)
     if not success:
         logger.error(f"发起通话失败")

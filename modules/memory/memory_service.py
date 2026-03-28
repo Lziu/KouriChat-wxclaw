@@ -103,6 +103,32 @@ class MemoryService:
         os.makedirs(backup_dir, exist_ok=True)
         return os.path.join(backup_dir, "core_memory_backup.json")
 
+    def clear_short_memory(self, avatar_name: str, user_id: str) -> bool:
+        """
+        清空指定角色与用户的短期记忆
+
+        Args:
+            avatar_name: 角色名称
+            user_id: 用户ID
+
+        Returns:
+            bool: 是否成功清空
+        """
+        try:
+            short_memory_path = self._get_short_memory_path(avatar_name, user_id)
+            with open(short_memory_path, "w", encoding="utf-8") as f:
+                json.dump([], f, ensure_ascii=False, indent=2)
+
+            conversation_key = f"{avatar_name}_{user_id}"
+            if conversation_key in self.conversation_count:
+                self.conversation_count[conversation_key] = 0
+
+            logger.info(f"已清空短期记忆: 角色={avatar_name}, 用户ID={user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"清空短期记忆失败: {str(e)}")
+            return False
+
     def add_conversation(self, avatar_name: str, user_message: str, bot_reply: str, user_id: str,
                          is_system_message: bool = False):
         """

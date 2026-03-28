@@ -1,8 +1,8 @@
-@echo off
+﻿@echo off
 setlocal enabledelayedexpansion
 
-:: 设置控制台编码为 GBK
-chcp 936 >nul
+REM 设置控制台编码为 UTF-8
+chcp 65001 >nul
 title KouriChat 启动器
 
 cls
@@ -10,17 +10,17 @@ echo ====================================
 echo         K O U R I   C H A T
 echo ====================================
 echo.
-echo ╔══════════════════════════════════╗
-echo ║       KouriChat - AI Chat        ║
-echo ║  Created with Heart by KouriTeam ║
-echo ╚══════════════════════════════════╝
+echo ------------------------------------
+echo       KouriChat - AI Chat
+echo    Created with Heart by KouriTeam
+echo ------------------------------------
 echo KouriChat - AI Chat  Copyright (C) 2025, DeepAnima Network Technology Studio
 echo.
 
-:: 添加错误捕获
+REM 添加错误捕获
 echo [尝试] 正在启动程序喵...
 
-:: 检测 Python 是否已安装
+REM 检测 Python 是否已安装
 echo [检测] 正在检测Python环境喵...
 python --version >nul 2>&1
 if errorlevel 1 (
@@ -31,7 +31,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: 检测 Python 版本
+REM 检测 Python 版本
 for /f "tokens=2" %%I in ('python -V 2^>^&1') do set PYTHON_VERSION=%%I
 echo [尝试] 检测到Python版本: !PYTHON_VERSION!
 for /f "tokens=2 delims=." %%I in ("!PYTHON_VERSION!") do set MINOR_VERSION=%%I
@@ -44,10 +44,10 @@ if !MINOR_VERSION! GEQ 13 (
     exit /b 1
 )
 
-:: 设置虚拟环境目录
+REM 设置虚拟环境目录
 set VENV_DIR=.venv
 
-:: 如果虚拟环境不存在或激活脚本不存在，则重新创建
+REM 如果虚拟环境不存在或激活脚本不存在，则重新创建
 if not exist %VENV_DIR% (
     goto :create_venv
 ) else if not exist %VENV_DIR%\Scripts\activate.bat (
@@ -91,10 +91,10 @@ if errorlevel 1 (
 echo [成功] 虚拟环境已创建喵...
 
 :activate_venv
-:: 激活虚拟环境
+REM 激活虚拟环境
 echo [尝试] 正在激活虚拟环境喵...
 
-:: 再次检查激活脚本是否存在
+REM 再次检查激活脚本是否存在
 if not exist %VENV_DIR%\Scripts\activate.bat (
     echo [警告] 虚拟环境激活脚本不存在
     echo.
@@ -114,7 +114,7 @@ goto :install_deps
 echo [尝试] 将使用系统 Python 继续运行喵...
 
 :install_deps
-:: 设置镜像源列表
+REM 设置镜像源列表
 set "MIRRORS[1]=阿里云源|https://mirrors.aliyun.com/pypi/simple/"
 set "MIRRORS[2]=清华源|https://pypi.tuna.tsinghua.edu.cn/simple"
 set "MIRRORS[3]=腾讯源|https://mirrors.cloud.tencent.com/pypi/simple"
@@ -122,11 +122,11 @@ set "MIRRORS[4]=中科大源|https://pypi.mirrors.ustc.edu.cn/simple/"
 set "MIRRORS[5]=豆瓣源|http://pypi.douban.com/simple/"
 set "MIRRORS[6]=网易源|https://mirrors.163.com/pypi/simple/"
 
-:: 检查requirements.txt是否存在
+REM 检查requirements.txt是否存在
 if not exist requirements.txt (
     echo [警告] requirements.txt 文件不存在，跳过依赖安装喵...
 ) else (
-    :: 安装依赖
+    REM 安装依赖
     echo [尝试] 开始安装依赖喵...
     
     set SUCCESS=0
@@ -158,7 +158,7 @@ if not exist requirements.txt (
     )
 )
 
-:: 检查配置文件是否存在
+REM 检查配置文件是否存在
 if not exist run_config_web.py (
     echo [错误] 配置文件 run_config_web.py 不存在喵...
     echo.
@@ -167,12 +167,34 @@ if not exist run_config_web.py (
     exit /b 1
 )
 
-:: 运行程序
+REM 清理旧的配置Web进程，避免旧代码继续占用 8502 端口
+echo [检测] 正在检查8502端口是否被旧进程占用喵...
+set PORT_IN_USE=0
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":8502" ^| findstr "LISTENING"') do (
+    if not "%%P"=="" (
+        set PORT_IN_USE=1
+        echo [警告] 检测到旧的Web进程 PID=%%P，正在结束喵...
+        taskkill /PID %%P /F >nul 2>&1
+        if !errorlevel! EQU 0 (
+            echo [成功] 已结束旧进程 PID=%%P
+        ) else (
+            echo [警告] 结束旧进程 PID=%%P 失败，可能需要手动关闭
+        )
+    )
+)
+if %PORT_IN_USE% EQU 1 (
+    echo [尝试] 等待端口释放喵...
+    timeout /t 2 /nobreak >nul
+) else (
+    echo [成功] 8502端口空闲
+)
+
+REM 运行程序
 echo [尝试] 正在启动应用程序喵...
 python run_config_web.py
 set PROGRAM_EXIT_CODE=%errorlevel%
 
-:: 异常退出处理
+REM 异常退出处理
 if %PROGRAM_EXIT_CODE% NEQ 0 (
     echo [错误] 程序异常退出，错误代码: %PROGRAM_EXIT_CODE%...
     echo.
@@ -182,7 +204,7 @@ if %PROGRAM_EXIT_CODE% NEQ 0 (
     echo 3. 权限不足喵...
 )
 
-:: 退出虚拟环境（如果已激活）
+REM 退出虚拟环境（如果已激活）
 if exist %VENV_DIR%\Scripts\deactivate.bat (
     echo [尝试] 正在退出虚拟环境喵...
     call %VENV_DIR%\Scripts\deactivate.bat 2>nul

@@ -8,6 +8,32 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize_listen_list_value(value):
+    """兼容空列表、JSON字符串列表、逗号分隔字符串。"""
+    if value is None:
+        return []
+
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip() and str(item).strip() != '[]']
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text or text in {'[]', 'null', 'None'}:
+            return []
+
+        if text.startswith('[') and text.endswith(']'):
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed if str(item).strip()]
+            except Exception:
+                pass
+
+        return [item.strip() for item in text.split(',') if item.strip() and item.strip() != '[]']
+
+    return [str(value).strip()] if str(value).strip() and str(value).strip() != '[]' else []
+
 @dataclass
 class GroupChatConfigItem:
     id: str
@@ -369,10 +395,9 @@ class Config:
 
                 # 用户设置
                 user_data = categories['user_settings']['settings']
-                listen_list = user_data['listen_list'].get('value', [])
-                # 确保listen_list是列表类型
-                if not isinstance(listen_list, list):
-                    listen_list = [str(listen_list)] if listen_list else []
+                listen_list = _normalize_listen_list_value(
+                    user_data['listen_list'].get('value', [])
+                )
                 
                 # 群聊配置
                 group_chat_config_data = user_data.get('group_chat_config', {}).get('value', [])

@@ -96,7 +96,7 @@ class DebugCommandHandler:
 
         # 清空当前角色的对话上下文
         elif cmd == "context":
-            return True, self._clear_context(user_id)
+            return True, self._clear_context(current_avatar, user_id)
         
         # 手动生成核心记忆
         elif cmd == "gen_core_mem":
@@ -126,7 +126,7 @@ class DebugCommandHandler:
 - /mem: 显示当前角色的记忆
 - /reset: 重置当前角色的最近记忆
 - /clear: 清空当前角色的核心记忆
-- /context: 清空当前角色的对话上下文
+- /context: 清空当前角色的对话上下文和短期记忆
 - /diary: 生成角色小日记
 - /state: 查看角色状态
 - /letter: 角色给你写的信
@@ -249,22 +249,38 @@ class DebugCommandHandler:
             logger.error(f"清空核心记忆失败: {str(e)}")
             return f"清空核心记忆失败: {str(e)}"
 
-    def _clear_context(self, user_id: str) -> str:
+    def _clear_context(self, avatar_name: str, user_id: str) -> str:
         """
         清空当前角色的对话上下文
 
         Args:
+            avatar_name: 角色名
             user_id: 用户ID
 
         Returns:
             str: 操作结果
         """
-        if not self.llm_service:
-            return "错误: LLM服务未初始化"
+        if not self.llm_service and not self.memory_service:
+            return "错误: 上下文服务未初始化"
 
         try:
-            self.llm_service.clear_history(user_id)
-            return "已清空对话上下文"
+            llm_cleared = False
+            memory_cleared = False
+
+            if self.llm_service:
+                llm_cleared = self.llm_service.clear_history(user_id)
+
+            if self.memory_service:
+                memory_cleared = self.memory_service.clear_short_memory(avatar_name, user_id)
+
+            if llm_cleared and memory_cleared:
+                return f"已清空 {avatar_name} 的对话上下文和短期记忆"
+            if llm_cleared:
+                return f"已清空 {avatar_name} 的对话上下文"
+            if memory_cleared:
+                return f"已清空 {avatar_name} 的短期记忆"
+
+            return f"{avatar_name} 当前没有可清空的上下文或短期记忆"
         except Exception as e:
             logger.error(f"清空对话上下文失败: {str(e)}")
             return f"清空对话上下文失败: {str(e)}"
